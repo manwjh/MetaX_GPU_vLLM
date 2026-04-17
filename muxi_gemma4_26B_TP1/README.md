@@ -29,6 +29,8 @@
 | `patches/moe/vllm/.../moe.py` | 发布包内附带的 vLLM MoE 对照快照 |
 | `patches/moe/patch_vllm_moe_skip_gemma4_fused.py` | 早期单点 MoE 补丁脚本，便于审计 |
 | `patches/exported/changsha_gemma4_site_unified.diff` | 包含 `vllm moe.py` 与 `transformers/integrations/moe.py` 在内的统一 diff |
+| `test_reports/` | 发版测试报告索引与模板（`README.md`、`TEMPLATE.md`、按日期的 `*.md`） |
+| `scripts/verify_release_package.sh` | **无 GPU** 静态检查：包内 `scripts/*.sh` 的 `bash -n` 与 `scripts/*.py` 的 `py_compile` |
 
 ## 2. 适用前提
 
@@ -173,6 +175,19 @@ bash scripts/muxi_gemma4/build_muxi_gemma4_26B_TP1_release.sh
 
 - 目录包：`dist/muxi_gemma4_26B_TP1/`
 - 压缩包：`dist/muxi_gemma4_26B_TP1.tar.gz`
+
+生成后建议在**解压后的包根目录**执行一次静态检查：
+
+```bash
+cd dist/muxi_gemma4_26B_TP1
+bash scripts/verify_release_package.sh
+```
+
+## 8.1 测试报告目录
+
+- **`test_reports/README.md`**：索引  
+- **`test_reports/TEMPLATE.md`**：后续发版复制填写  
+- **`test_reports/2026-04-17_release_smoke.md`**：首轮发版前烟测记录（含 monorepo `make check`、包内静态检查、长沙 `changsha_autoverify` 引用）
 
 ## 9. 配套文档
 

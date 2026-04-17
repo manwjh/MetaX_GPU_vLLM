@@ -1,5 +1,20 @@
 # `muxi_gemma4_26B_TP1`
 
+wangjunhui@MacBook-Pro-5 changsha_gpu % python3 app/llm_tui/main.py --chat --stream
+config source: /Users/wangjunhui/playcode/changsha_gpu/app/llm_tui/.env.example
+chat mode started. input '/exit' to quit this mode.
+stream: on
+target: provider=openai_compatible base_url=http://122.207.82.8:18010 model=gemma-4-26B-A4B-it
+health: http_status=200 latency_ms=40.37 models=1
+max_tokens [128]: 
+temperature [0.0]: 
+you> 你是什么模型
+assistant> 我是 Gemma 4，是由 Google DeepMind 开发的大型语言模型。我是一个开放权重（open weights）模型。
+http_status: 200 latency_ms: 1951.82
+usage: {}
+you> 
+
+
 本文档假定你当前位于**发布包根目录**：即解压 **`muxi_gemma4_26B_TP1.tar.gz`** 后得到的一级目录（目录名通常为 `muxi_gemma4_26B_TP1`）。下文简称「**本包**」。
 
 **说明：** 本包是**独立交付物**——自洽的 Docker、脚本与补丁；**不包含** monorepo 里的 `workbench/` 研发区、实验笔记或 `dist/` 等构建机路径。若你是维护者、需要从源码仓库**重新打包**本 tarball，见仓库内 **`docs/muxi/RELEASING_muxi_gemma4_26B_TP1.md`**（该文件**不在**本 tarball 内，随完整仓库提供）。

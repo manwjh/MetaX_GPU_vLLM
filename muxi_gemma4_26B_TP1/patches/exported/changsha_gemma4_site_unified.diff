@@ -1,0 +1,156 @@
+### BEGIN_DIFF /opt/conda/lib/python3.10/site-packages/transformers/integrations/moe.py (from /opt/conda/lib/python3.10/site-packages/transformers/integrations/moe.py.bak.maca_grouped_mm)
+--- /opt/conda/lib/python3.10/site-packages/transformers/integrations/moe.py.bak.maca_grouped_mm
++++ /opt/conda/lib/python3.10/site-packages/transformers/integrations/moe.py
+@@ -296,17 +296,8 @@
+         `torch.Tensor`: Output tensor of shape (S, output_dim).
+     """
+ 
+-    if _can_use_grouped_mm(input, weight, offs):
+-        # torch.nn.functional.grouped_mm and torch._grouped_mm are not autocast-enabled,
+-        # when autocast is enabled we can end up with intermediate tensors in fp32 (e.g. LayerNorm output) and weight tensors in bf16
+-        # In that case we need to cast the input to the weight dtype to avoid dtype mismatch errors.
+-        # See: https://github.com/pytorch/pytorch/issues/174763
+-        if hasattr(torch.nn.functional, "grouped_mm"):
+-            return torch.nn.functional.grouped_mm(input.to(weight.dtype), weight, offs=offs)
+-        elif hasattr(torch, "_grouped_mm"):
+-            return torch._grouped_mm(input.to(weight.dtype), weight, offs=offs)
+-
+-    return torch.ops.transformers.grouped_mm_fallback(input, weight, offs=offs)
++    # MUXI/MACA: torch._grouped_mm / functional.grouped_mm require NV sm90 on this PyTorch build.
++    return torch.ops.transformers.grouped_mm_fallback(input.to(weight.dtype), weight, offs=offs)
+ 
+ 
+ def _grouped_linear(
+### END_DIFF /opt/conda/lib/python3.10/site-packages/transformers/integrations/moe.py
+### BEGIN_DIFF /opt/conda/lib/python3.10/site-packages/vllm/model_executor/models/transformers/base.py (from /opt/conda/lib/python3.10/site-packages/vllm/model_executor/models/transformers/base.py.bak.gemma4_attn)
+--- /opt/conda/lib/python3.10/site-packages/vllm/model_executor/models/transformers/base.py.bak.gemma4_attn
++++ /opt/conda/lib/python3.10/site-packages/vllm/model_executor/models/transformers/base.py
+@@ -361,13 +361,39 @@
+ 
+         attention_instances = {}
+         for i in range(start, end):
+-            # Handle interleaved sliding window attention
++            layer_head_size = head_size
++            layer_num_kv_heads = num_kv_heads
+             per_layer_sliding_window = None
++
++            tc_layer_types = getattr(text_config, "layer_types", None)
+             if (
+-                hasattr(self.config, "layer_types")
+-                and self.config.layer_types[i] == "sliding_attention"
++                getattr(text_config, "model_type", None) == "gemma4_text"
++                and tc_layer_types is not None
++                and i < len(tc_layer_types)
+             ):
+-                per_layer_sliding_window = self.config.sliding_window
++                is_sliding_layer = tc_layer_types[i] == "sliding_attention"
++                layer_head_size = (
++                    text_config.head_dim
++                    if is_sliding_layer
++                    else text_config.global_head_dim
++                )
++                use_alt_kv = text_config.attention_k_eq_v and not is_sliding_layer
++                n_kv = text_config.num_key_value_heads
++                if use_alt_kv and getattr(
++                    text_config, "num_global_key_value_heads", None
++                ) is not None:
++                    n_kv = text_config.num_global_key_value_heads
++                tp = self.parallel_config.tensor_parallel_size
++                layer_num_kv_heads = max(1, n_kv // tp)
++                if is_sliding_layer:
++                    per_layer_sliding_window = text_config.sliding_window
++            else:
++                if (
++                    hasattr(self.config, "layer_types")
++                    and i < len(self.config.layer_types)
++                    and self.config.layer_types[i] == "sliding_attention"
++                ):
++                    per_layer_sliding_window = self.config.sliding_window
+ 
+             attn_cls = (
+                 EncoderOnlyAttention
+@@ -376,11 +402,9 @@
+             )
+             attention_instances[i] = attn_cls(
+                 num_heads=num_heads,
+-                head_size=head_size,
+-                # NOTE: We use Llama scale as default, if it's set by
+-                # Transformers, it's updated in vllm_flash_attention_forward
+-                scale=head_size**-0.5,
+-                num_kv_heads=num_kv_heads,
++                head_size=layer_head_size,
++                scale=layer_head_size**-0.5,
++                num_kv_heads=layer_num_kv_heads,
+                 cache_config=self.cache_config,
+                 quant_config=self.quant_config,
+                 logits_soft_cap=logits_soft_cap,
+### END_DIFF /opt/conda/lib/python3.10/site-packages/vllm/model_executor/models/transformers/base.py
+### BEGIN_DIFF /opt/conda/lib/python3.10/site-packages/vllm/model_executor/models/transformers/moe.py (from /opt/conda/lib/python3.10/site-packages/vllm/model_executor/models/transformers/moe.py.bak.gemma4_topk)
+--- /opt/conda/lib/python3.10/site-packages/vllm/model_executor/models/transformers/moe.py.bak.gemma4_topk
++++ /opt/conda/lib/python3.10/site-packages/vllm/model_executor/models/transformers/moe.py
+@@ -184,7 +184,7 @@
+ 
+         # Positional arguments
+         num_experts = self.model_config.get_num_experts()
+-        top_k = getattr_iter(text_config, ["num_experts_per_tok", "top_k"], None)
++        top_k = getattr_iter(text_config, ["num_experts_per_tok", "top_k", "top_k_experts"], None)
+         assert top_k is not None
+         hidden_size = text_config.hidden_size
+         intermediate_size = getattr_iter(
+@@ -268,6 +268,15 @@
+                 params = list(child_module.parameters())
+                 is_3d = len(params) > 0 and all(p.ndim == 3 for p in params)
+                 if child_name == "experts" and (is_modulelist or is_3d):
++                    # Gemma4 uses fused gate_up_proj + down_proj tensors; FusedMoE's
++                    # expert_mapping expects Mixtral-style per-shard names and will
++                    # not load these checkpoints. Keep native Transformers experts.
++                    if any(
++                        "gate_up_proj" in n
++                        for n, _ in child_module.named_parameters()
++                    ):
++                        _recursive_replace(child_module, prefix=qual_name)
++                        continue
+                     # Alias for readability
+                     mlp = module
+                     experts = child_module
+### END_DIFF /opt/conda/lib/python3.10/site-packages/vllm/model_executor/models/transformers/moe.py
+### BEGIN_DIFF /opt/conda/lib/python3.10/site-packages/vllm_metax/v1/attention/ops/triton_unified_attention.py (from /opt/conda/lib/python3.10/site-packages/vllm_metax/v1/attention/ops/triton_unified_attention.py.bak.maca_gemma4)
+--- /opt/conda/lib/python3.10/site-packages/vllm_metax/v1/attention/ops/triton_unified_attention.py.bak.maca_gemma4
++++ /opt/conda/lib/python3.10/site-packages/vllm_metax/v1/attention/ops/triton_unified_attention.py
+@@ -873,9 +873,9 @@
+         # Gemma3: use 32 for decode (default is 16)
+         return 32
+ 
+-    # Gemma4 full attention (head_dim 512) on MACA: Triton shared memory limit 65536
++    # Gemma4 full attention (head_dim 512) on MACA: TILE>=16 for tl.dot; BLOCK_M cap below
+     if head_size >= 448:
+-        return 8
++        return 16
+ 
+     # Default behavior
+     if is_prefill:
+@@ -1040,6 +1040,7 @@
+             num_seqs=num_seqs,
+             BLOCK_M=BLOCK_M,
+             USE_FP8=output_scale is not None,
++            num_stages=1,
+         )
+     else:
+         kernel_unified_attention_3d[
+@@ -1092,6 +1093,7 @@
+             num_seqs=num_seqs,
+             BLOCK_M=BLOCK_M,
+             NUM_SEGMENTS_PER_SEQ=num_par_softmax_segments,
++            num_stages=1,
+         )
+         reduce_segments[(q.shape[0], num_query_heads)](
+             output_ptr=out,
+@@ -1112,4 +1114,5 @@
+             BLOCK_Q=BLOCK_Q,
+             NUM_SEGMENTS_PER_SEQ=num_par_softmax_segments,
+             USE_FP8=output_scale is not None,
+-        )
++            num_stages=1,
++        )
+### END_DIFF /opt/conda/lib/python3.10/site-packages/vllm_metax/v1/attention/ops/triton_unified_attention.py
+---SITE_DIFF_EXPORT_END---

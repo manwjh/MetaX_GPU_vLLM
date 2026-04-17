@@ -1,0 +1,36 @@
+# 长沙现场摘录（发版轮次，2026-04-17）
+# 说明：与发布包同源栈（vLLM 0.15 + TRITON_ATTN、TP=1、MAX_MODEL_LEN=4096 等）的现场容器验收。
+# 完整原始日志见 changsha_gpu monorepo：docs/muxi/exports/changsha_autoverify_release_round_2026-04-17.log
+
+== [2a] 远程 vLLM 可达性（GET /v1/models）==
+health_URL http://127.0.0.1:18010/v1/models
+health_latency_ms 4.48
+health_HTTP 200
+health_model 0 gemma-4-26B-A4B-it
+health_model_count 1
+VLLM_HEALTH_OK 1
+---VLLM_HEALTH_END---
+
+pip_show_vllm_transformers
+  Name: vllm
+  Version: 0.15.0
+  Name: transformers
+  Version: 5.5.0
+---MUXI_BUNDLE_END---
+
+== [2c] 远程 prompt 矩阵（MATRIX_QUICK=1）==
+matrix_BASE http://127.0.0.1:18010 MODEL gemma-4-26B-A4B-it
+matrix_QUICK 1 matrix_variant_count 8
+matrix_USER '用一句话介绍长沙。'
+MATRIX_BEST_CJK_RATIO 0.941176
+MATRIX_BEST_VARIANT openai_chat_system_must_zh_no_pinyin
+MATRIX_ACCEPT_CJK 1
+MATRIX_ACCEPT_STATUS PASS
+MATRIX_ELAPSED_SEC 11.888
+---MATRIX_END---
+
+== [2d] 远程 Transformers / config 轻量探测 ==
+config_model_type gemma4
+config_architectures ['Gemma4ForConditionalGeneration']
+transformers_import_version 5.5.0
+---TRANSFORMERS_PROBE_END---

@@ -1,8 +1,10 @@
 # `muxi_gemma4_26B_TP1`
 
-这是一个面向 **MetaX / 沐曦 C500** 的 **Gemma4 26B IT 单卡 TP=1 清洁发布包**。
+本文档假定你当前位于**发布包根目录**：即解压 **`muxi_gemma4_26B_TP1.tar.gz`** 后得到的一级目录（目录名通常为 `muxi_gemma4_26B_TP1`）。下文简称「**本包**」。
 
-目标不是保留研发过程，而是给出一个**最小可交付**的 Docker 方案，直接收敛到已经在长沙验证通过的基线：
+**说明：** 本包是**独立交付物**——自洽的 Docker、脚本与补丁；**不包含** monorepo 里的 `workbench/` 研发区、实验笔记或 `dist/` 等构建机路径。若你是维护者、需要从源码仓库**重新打包**本 tarball，见仓库内 **`docs/muxi/RELEASING_muxi_gemma4_26B_TP1.md`**（该文件**不在**本 tarball 内，随完整仓库提供）。
+
+这是一个面向 **MetaX / 沐曦 C500** 的 **Gemma4 26B IT 单卡 TP=1 清洁发布包**。目标不是保留研发过程，而是给出**最小可交付**的 Docker 方案，与已在长沙验证通过的基线对齐：
 
 - `CUDA_VISIBLE_DEVICES=6`
 - `TENSOR_PARALLEL_SIZE=1`
@@ -13,23 +15,26 @@
 
 ## 1. 包内内容
 
+**目录地图（完整树状说明）见 `docs/LAYOUT.md`。**
+
 | 路径 | 作用 |
 |------|------|
 | `Dockerfile` | 基于沐曦 `vllm-metax` 基镜像构建发布镜像 |
 | `.env.example` | 建议环境变量模板 |
-| `QUICKSTART.md` | 给第一次试包的人用的 5 分钟上手说明 |
-| `OFFLINE_DISTRIBUTION.md` | `docker save/load` 离线分发说明 |
+| `docs/LAYOUT.md` | 发布包目录结构与各目录职责 |
+| `docs/QUICKSTART.md` | 给第一次试包的人用的 5 分钟上手说明 |
+| `docs/OFFLINE_DISTRIBUTION.md` | `docker save/load` 离线分发说明 |
 | `scripts/container_entrypoint.sh` | 容器启动入口：打补丁、安装 reasoning parser、启动 vLLM |
 | `scripts/verify_service.sh` | 容器内验收：先查 `/v1/models`，再跑 chat 烟测 |
 | `scripts/apply_vllm_site_patches.py` | 幂等 site-packages 补丁 |
-| `scripts/run_vllm_gemma4_tp2.sh` | 实际启动底座，当前默认已是 TP=1；支持环境变量 **`VLLM_APISERVER_EXTRA`** 追加 `api_server` 参数（调度类，见仓库 `Gemma4-TP1-吞吐深挖清单.md`） |
+| `scripts/run_vllm_gemma4_tp2.sh` | 实际启动底座，当前默认已是 TP=1；可选环境变量 **`VLLM_APISERVER_EXTRA`** 追加 `api_server` 参数（调度类调优） |
 | `scripts/vllm_bootstrap_gemma4_maca.py` | Gemma4 on MACA bootstrap |
 | `scripts/test_vllm_chat.py` | OpenAI chat/completions 烟测 |
 | `patches/reasoning/*` | Gemma4 reasoning parser 发布版副本 |
 | `patches/moe/vllm/.../moe.py` | 发布包内附带的 vLLM MoE 对照快照 |
 | `patches/moe/patch_vllm_moe_skip_gemma4_fused.py` | 早期单点 MoE 补丁脚本，便于审计 |
 | `patches/exported/changsha_gemma4_site_unified.diff` | 包含 `vllm moe.py` 与 `transformers/integrations/moe.py` 在内的统一 diff |
-| `test_reports/` | 发版测试报告索引与模板（`README.md`、`TEMPLATE.md`、按日期的 `*.md`） |
+| `verification/` | 发版验证：见 `verification/reports/2026-04-17_release.md` 与 `evidence/` 下日志摘录 |
 | `scripts/verify_release_package.sh` | **无 GPU** 静态检查：包内 `scripts/*.sh` 的 `bash -n` 与 `scripts/*.py` 的 `py_compile` |
 
 ## 2. 适用前提
@@ -40,7 +45,7 @@
 2. 宿主机可以访问沐曦基础镜像仓库，或者你已提前拿到同等基镜像。
 3. 宿主机能挂载 Gemma4 模型目录到容器内，例如 `/data/gemma-4-26B-A4B-it`。
 4. 宿主机上已有可用的 MACA / MetaX 运行环境，这个发布包**不是**从零安装驱动。
-5. **必须用本仓库 `Dockerfile` 构建镜像**（或等价地保证容器内 **Transformers 能识别 `model_type=gemma4`**）。发布镜像在构建阶段会 **`pip install transformers==5.5.0`**（可用 build-arg **`TRANSFORMERS_PIN`** 覆盖），避免基镜像自带 Transformers 过旧导致 `ModelConfig` 报错。
+5. **必须用本包内 `Dockerfile` 构建镜像**（或等价地保证容器内 **Transformers 能识别 `model_type=gemma4`**）。发布镜像在构建阶段会 **`pip install transformers==5.5.0`**（可用 build-arg **`TRANSFORMERS_PIN`** 覆盖），避免基镜像自带 Transformers 过旧导致 `ModelConfig` 报错。
 
 ## 3. 构建镜像
 
@@ -163,36 +168,19 @@ curl -sS "http://127.0.0.1:${HOST_PORT}/v1/chat/completions" \
 
 因此，**发布包默认值仍保持 4096**，把 `8192/16384` 视为后续运营可选项，而不是默认交付参数。
 
-## 8. 如何生成发布包
+## 8. 验收记录目录 `verification/`
 
-在仓库根执行：
+本目录用于**发版验证**：`reports/` 为结构化报告，`evidence/` 为可对照的输出与现场摘录。接收方**只需**阅读本包内文件；**不要求**持有完整研发仓库。
 
-```bash
-bash scripts/muxi_gemma4/build_muxi_gemma4_26B_TP1_release.sh
-```
-
-生成物：
-
-- 目录包：`dist/muxi_gemma4_26B_TP1/`
-- 压缩包：`dist/muxi_gemma4_26B_TP1.tar.gz`
-
-生成后建议在**解压后的包根目录**执行一次静态检查：
-
-```bash
-cd dist/muxi_gemma4_26B_TP1
-bash scripts/verify_release_package.sh
-```
-
-## 8.1 测试报告目录
-
-- **`test_reports/README.md`**：索引  
-- **`test_reports/TEMPLATE.md`**：后续发版复制填写  
-- **`test_reports/2026-04-17_release_smoke.md`**：首轮发版前烟测记录（含 monorepo `make check`、包内静态检查、长沙 `changsha_autoverify` 引用）
+- **`verification/README.md`**：索引  
+- **`verification/reports/2026-04-17_release.md`**：首轮发版验收摘要（含证据文件表）  
+- **`verification/evidence/`**：`00_monorepo_make_check.log`、`01_package_static_verify.log`、`02_changsha_field_excerpt.txt`
 
 ## 9. 配套文档
 
-- 想最快试起来：看 `QUICKSTART.md`
-- 想给别人离线发包：看 `OFFLINE_DISTRIBUTION.md`
+- 目录总览：`docs/LAYOUT.md`
+- 想最快试起来：`docs/QUICKSTART.md`
+- 想给别人离线发包：`docs/OFFLINE_DISTRIBUTION.md`
 
 ## 10. 故障排查
 
@@ -212,7 +200,7 @@ ValidationError: ... The checkpoint you are trying to load has model type `gemma
 2. 自定义 **`BASE_IMAGE`** 时，构建仍可执行同一 `RUN pip install transformers==...`；若 `pip` 与 vLLM 依赖冲突，优先换用与长沙一致的 **`vllm-metax:0.15.0-...`** 基镜像再构建。
 3. 日志里 **`trust_remote_code` is ignored** 为 vLLM 提示，可忽略，与上述错误无关。
 4. **`docker build` 时 pip 提示 `vllm … requires transformers<5`，但安装了 `transformers 5.5.0`：** 来自 PyPI 元数据与 **Gemma4 需 Transformers 5.x** 的张力；沐曦 **`vllm-metax`** 镜像默认常为 **4.57.x**（无 `gemma4`），本 Dockerfile **有意**升到 **5.5.0**。长沙现场运行中的 **`wjh-vllm-gemma4`** 亦为 **5.5.0** 且与 vLLM 0.15 联调通过。
-5. **发布镜像已在长沙宿主机实测（2026-04-17）：** `docker build -t muxi_gemma4_tp1_verify:local` 成功；对 **`muxi_gemma4_tp1_verify:local`** 执行 `AutoConfig.from_pretrained`（宿主机权重绑定 **`/8T/perfxcloud/model/google/gemma-4-26B-A4B-it` → 容器内 `/data/gemma-4-26B-A4B-it`**）输出 **`model_type=gemma4`**，证明 **不再出现** 用户反馈的 `ModelConfig` / 架构不可识别错误。完整起服与 API 烟测与线上一致，需挂载真实权重并占用 GPU，见 §4 与 `QUICKSTART.md`。
+5. **发布镜像已在长沙宿主机实测（2026-04-17）：** `docker build -t muxi_gemma4_tp1_verify:local` 成功；对 **`muxi_gemma4_tp1_verify:local`** 执行 `AutoConfig.from_pretrained`（宿主机权重绑定 **`/8T/perfxcloud/model/google/gemma-4-26B-A4B-it` → 容器内 `/data/gemma-4-26B-A4B-it`**）输出 **`model_type=gemma4`**，证明 **不再出现** 用户反馈的 `ModelConfig` / 架构不可识别错误。完整起服与 API 烟测与线上一致，需挂载真实权重并占用 GPU，见 §4 与 `docs/QUICKSTART.md`。
 
 ### 10.2 端口与日志里的 `non-default args`
 
@@ -222,22 +210,21 @@ ValidationError: ... The checkpoint you are trying to load has model type `gemma
 
 ## 11. 补丁审计说明
 
-这次发布包不仅带运行脚本，也带了**MoE 相关审计材料**，避免只看到 `apply_vllm_site_patches.py` 却看不到它改了什么：
+本包不仅带运行脚本，也带了**MoE 相关审计材料**，避免只看到 `apply_vllm_site_patches.py` 却看不到它改了什么：
 
 - `patches/moe/vllm/model_executor/models/transformers/moe.py`
-  这是当前发布基线使用的 **vLLM MoE 对照快照**
+  当前发布基线使用的 **vLLM MoE 对照快照**（整文件随包附带）
 - `patches/moe/patch_vllm_moe_skip_gemma4_fused.py`
-  这是早期针对 Gemma4 `gate_up_proj` / `FusedMoE` 问题的单点 patch helper
+  早期针对 Gemma4 `gate_up_proj` / `FusedMoE` 问题的单点 patch helper
 - `patches/exported/changsha_gemma4_site_unified.diff`
-  这是最完整的统一 diff，里面**明确包含**：
+  最完整的统一 diff，其中**明确包含**：
   - `vllm/model_executor/models/transformers/moe.py`
   - `transformers/integrations/moe.py`
 
 说明：
 
-- 仓库里**有** `vllm` 的 `moe.py` 快照，所以本包直接附带了整文件
-- 仓库里**没有单独维护**一份 `transformers/integrations/moe.py` 的完整快照，因此当前发布包对这部分以 **unified diff** 形式交付
-- 从运行角度，容器仍以 `scripts/apply_vllm_site_patches.py` 为准；这些附带文件主要用于**审计、复核、对照**
+- **`transformers/integrations/moe.py`** 在本包中以 **unified diff** 形式交付（未再单独附带完整快照文件）
+- 运行路径仍以容器内 `scripts/apply_vllm_site_patches.py` 为准；上述文件用于**审计、复核、对照**
 
 ## 12. 边界说明
 

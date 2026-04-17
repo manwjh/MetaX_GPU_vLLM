@@ -1,0 +1,28 @@
+python3 -m py_compile scripts/muxi_gemma4/test_vllm_chat.py \
+	  workbench/gemma4-vllm/scripts/gemma4_chat_demo_remote.py \
+	  workbench/gemma4-vllm/scripts/apply_vllm_site_patches.py \
+	  scripts/muxi_gemma4/gemma4_prompt.py \
+	  scripts/muxi_gemma4/gemma4_client_parse.py \
+	  scripts/muxi_gemma4/remote_vllm_health.py \
+	  scripts/muxi_gemma4/remote_token_align.py \
+	  scripts/muxi_gemma4/remote_prompt_matrix.py \
+	  scripts/muxi_gemma4/remote_engine_snapshot.py \
+	  scripts/muxi_gemma4/remote_export_site_diffs.py \
+	  scripts/muxi_gemma4/remote_transformers_probe.py \
+	  scripts/muxi_gemma4/remote_hf_generate_smoke.py \
+	  scripts/muxi_gemma4/remote_logprobs_probe.py \
+	  scripts/muxi_gemma4/remote_triton_attention_align.py \
+	  scripts/muxi_gemma4/remote_grouped_mm_align.py \
+	  scripts/muxi_gemma4/remote_logits_hf_vllm_step0.py \
+	  scripts/muxi_gemma4/remote_gemma4_triton_tile_guard.py \
+	  scripts/muxi_gemma4/remote_vllm_engine_env_probe.py \
+	  scripts/muxi_gemma4/remote_vllm_process_tree_guard.py \
+	  scripts/muxi_gemma4/remote_openai_throughput_probe.py
+python3 scripts/muxi_gemma4/gemma4_client_parse.py
+gemma4_client_parse: ok
+python3 workbench/gemma4-vllm/scripts/verify_metax_gemma4_patch_anchors.py
+diff_anchors: ok /Users/wangjunhui/playcode/changsha_gpu/workbench/gemma4-vllm/forks/GEMMA4_MACA_VLLM_METAX_v015.diff
+vendor_triton: ok /Users/wangjunhui/playcode/changsha_gpu/workbench/gemma4-vllm/vendor/vLLM-metax/vllm_metax/v1/attention/ops/triton_unified_attention.py
+vendor_triton_attn: ok /Users/wangjunhui/playcode/changsha_gpu/workbench/gemma4-vllm/vendor/vLLM-metax/vllm_metax/v1/attention/backends/triton_attn.py
+vendor_flex: ok /Users/wangjunhui/playcode/changsha_gpu/workbench/gemma4-vllm/vendor/vLLM-metax/vllm_metax/v1/attention/backends/flex_attention.py
+verify_metax_gemma4_patch_anchors: ok

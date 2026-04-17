@@ -100,7 +100,7 @@ cp .env.example .env
 
 ### 4.3 启动容器
 
-按照 `README.md` 或 `QUICKSTART.md` 的 `docker run` 命令启动。
+按照 `README.md` 或 `docs/QUICKSTART.md` 的 `docker run` 命令启动。
 
 ## 5. 离线分发时最容易漏的东西
 

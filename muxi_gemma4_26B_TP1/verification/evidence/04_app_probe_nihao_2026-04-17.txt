@@ -1,0 +1,6 @@
+config source: /Users/wangjunhui/playcode/changsha_gpu/app/llm_tui/.env.example
+answer: 你好！很高兴见到你。😊
+
+有什么我可以帮你的吗？无论是想聊天、问问题，还是需要处理什么任务，都可以随时告诉我！
+http_status: 200 latency_ms: 2186.55
+usage: {"prompt_tokens": 15, "total_tokens": 48, "completion_tokens": 33, "prompt_tokens_details": null}

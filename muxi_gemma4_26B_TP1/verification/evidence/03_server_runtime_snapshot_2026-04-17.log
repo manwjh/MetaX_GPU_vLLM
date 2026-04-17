@@ -1,0 +1,91 @@
+== [本地] 语法与 gemma4_client_parse ==
+python3 -m py_compile scripts/muxi_gemma4/test_vllm_chat.py \
+	  workbench/gemma4-vllm/scripts/gemma4_chat_demo_remote.py \
+	  workbench/gemma4-vllm/scripts/apply_vllm_site_patches.py \
+	  scripts/muxi_gemma4/gemma4_prompt.py \
+	  scripts/muxi_gemma4/gemma4_client_parse.py \
+	  scripts/muxi_gemma4/remote_vllm_health.py \
+	  scripts/muxi_gemma4/remote_token_align.py \
+	  scripts/muxi_gemma4/remote_prompt_matrix.py \
+	  scripts/muxi_gemma4/remote_engine_snapshot.py \
+	  scripts/muxi_gemma4/remote_export_site_diffs.py \
+	  scripts/muxi_gemma4/remote_transformers_probe.py \
+	  scripts/muxi_gemma4/remote_hf_generate_smoke.py \
+	  scripts/muxi_gemma4/remote_logprobs_probe.py \
+	  scripts/muxi_gemma4/remote_triton_attention_align.py \
+	  scripts/muxi_gemma4/remote_grouped_mm_align.py \
+	  scripts/muxi_gemma4/remote_logits_hf_vllm_step0.py \
+	  scripts/muxi_gemma4/remote_gemma4_triton_tile_guard.py \
+	  scripts/muxi_gemma4/remote_vllm_engine_env_probe.py \
+	  scripts/muxi_gemma4/remote_vllm_process_tree_guard.py \
+	  scripts/muxi_gemma4/remote_openai_throughput_probe.py
+python3 scripts/muxi_gemma4/gemma4_client_parse.py
+gemma4_client_parse: ok
+python3 workbench/gemma4-vllm/scripts/verify_metax_gemma4_patch_anchors.py
+diff_anchors: ok /Users/wangjunhui/playcode/changsha_gpu/workbench/gemma4-vllm/forks/GEMMA4_MACA_VLLM_METAX_v015.diff
+vendor_triton: ok /Users/wangjunhui/playcode/changsha_gpu/workbench/gemma4-vllm/vendor/vLLM-metax/vllm_metax/v1/attention/ops/triton_unified_attention.py
+vendor_triton_attn: ok /Users/wangjunhui/playcode/changsha_gpu/workbench/gemma4-vllm/vendor/vLLM-metax/vllm_metax/v1/attention/backends/triton_attn.py
+vendor_flex: ok /Users/wangjunhui/playcode/changsha_gpu/workbench/gemma4-vllm/vendor/vLLM-metax/vllm_metax/v1/attention/backends/flex_attention.py
+verify_metax_gemma4_patch_anchors: ok
+CHANGSHA_AUTOVERIFY_BEGIN layout_rev=57 host=<REDACTED_HOST> rev=? log=/Users/wangjunhui/playcode/changsha_gpu/docs/muxi/exports/changsha_autoverify_2026-04-16_eager_swizzle0_force2d.log ts=2026-04-17T16:24:16+0800
+== [1b] 远程进程树守卫（实验前检查并清理多套 EngineCore/Worker）==
+PROCESS_GUARD_begin
+PROCESS_GUARD_top_before
+UID                 PID                 PPID                C                   STIME               TTY                 TIME                CMD
+root                1318423             1318401             0                   15:44               ?                   00:00:00            sleep infinity
+root                1321205             1318401             2                   15:45               ?                   00:00:50            /opt/conda/bin/python3 /tmp/vllm_bootstrap_gemma4_maca.py --model /data/gemma-4-26B-A4B-it --served-model-name gemma-4-26B-A4B-it --trust-remote-code --host 0.0.0.0 --port 18010 --dtype bfloat16 --max-model-len 4096 --gpu-memory-utilization 0.88 --tensor-parallel-size 1 --no-enable-chunked-prefill --no-enable-prefix-caching --attention-backend TRITON_ATTN --limit-mm-per-prompt {"image":0,"audio":0} --reasoning-parser gemma4 --enforce-eager --default-chat-template-kwargs {"enable_thinking":false}
+root                1324645             1321205             0                   15:46               ?                   00:00:00            /opt/conda/bin/python3 -c from multiprocessing.resource_tracker import main;main(26)
+root                1324646             1321205             99                  15:46               ?                   00:40:05            VLLM::EngineCore
+PROCESS_GUARD_counts api_server=0 bootstrap=1 engine_core=1 worker=0 launcher=0
+PROCESS_GUARD_OK clean
+== [2a] 远程 vLLM 可达性（GET /v1/models，root@<REDACTED_HOST> / <REDACTED_HOST>）==
+health_URL http://127.0.0.1:18010/v1/models
+health_latency_ms 5.4
+health_HTTP 200
+health_model 0 gemma-4-26B-A4B-it
+health_model_count 1
+health_SERVED_MODEL (unset)
+VLLM_HEALTH_OK 1
+---VLLM_HEALTH_END---
+== [2b] 跳过远程 token 对齐（CHANGSHA_SKIP_TOKEN_ALIGN=1）==
+== [2b3c] 远程 vLLM 进程环境探针（CHANGSHA_ENGINE_ENV_PROBE=1）==
+ENGINE_ENV_PROBE_begin
+--- pgrep -af GEMMA (max 6) ---
+1427 bash -lc  set -euo pipefail echo "ENGINE_ENV_PROBE_begin" for kw in GEMMA VLLM_METAX TILE TRITON MACA; do   echo "--- pgrep -af ${kw} (max 6) ---"   pgrep -af "${kw}" 2>/dev/null | head -6 || true done echo "--- vllm-related PIDs ---" PIDS=$(pgrep -f 'vllm_bootstrap_gemma4_maca|vllm.entrypoints.openai.api_server|EngineCore' 2>/dev/null | head -8 || true) if [[ -z "${PIDS}" ]]; then   echo "ENGINE_ENV_PROBE_no_pids"   exit 0 fi for pid in ${PIDS}; do   if [[ -r "/proc/${pid}/cmdline" ]]; then     echo "ENGINE_ENV_PROBE_cmdline=${pid}:$(tr '\0' ' ' < "/proc/${pid}/cmdline" | head -c 240)"   fi   if [[ -r "/proc/${pid}/environ" ]]; then     echo "ENGINE_ENV_PROBE_pid=${pid}"     tr '\0' '\n' < "/proc/${pid}/environ" | grep -E '^(GEMMA4_USE_BOOTSTRAP|VLLM_METAX_GEMMA3_27B_TILE32|GEMMA4_MACA_EXPERTS_BACKEND|VLLM_GEMMA4_METAX_CHAT_PROMPT_ALIGN|VLLM_ATTENTION_BACKEND|CUDA_VISIBLE_DEVICES|TENSOR_PARALLEL)=' || true   fi done echo "ENGINE_ENV_PROBE_end" 
+--- pgrep -af VLLM_METAX (max 6) ---
+1427 bash -lc  set -euo pipefail echo "ENGINE_ENV_PROBE_begin" for kw in GEMMA VLLM_METAX TILE TRITON MACA; do   echo "--- pgrep -af ${kw} (max 6) ---"   pgrep -af "${kw}" 2>/dev/null | head -6 || true done echo "--- vllm-related PIDs ---" PIDS=$(pgrep -f 'vllm_bootstrap_gemma4_maca|vllm.entrypoints.openai.api_server|EngineCore' 2>/dev/null | head -8 || true) if [[ -z "${PIDS}" ]]; then   echo "ENGINE_ENV_PROBE_no_pids"   exit 0 fi for pid in ${PIDS}; do   if [[ -r "/proc/${pid}/cmdline" ]]; then     echo "ENGINE_ENV_PROBE_cmdline=${pid}:$(tr '\0' ' ' < "/proc/${pid}/cmdline" | head -c 240)"   fi   if [[ -r "/proc/${pid}/environ" ]]; then     echo "ENGINE_ENV_PROBE_pid=${pid}"     tr '\0' '\n' < "/proc/${pid}/environ" | grep -E '^(GEMMA4_USE_BOOTSTRAP|VLLM_METAX_GEMMA3_27B_TILE32|GEMMA4_MACA_EXPERTS_BACKEND|VLLM_GEMMA4_METAX_CHAT_PROMPT_ALIGN|VLLM_ATTENTION_BACKEND|CUDA_VISIBLE_DEVICES|TENSOR_PARALLEL)=' || true   fi done echo "ENGINE_ENV_PROBE_end" 
+--- pgrep -af TILE (max 6) ---
+1427 bash -lc  set -euo pipefail echo "ENGINE_ENV_PROBE_begin" for kw in GEMMA VLLM_METAX TILE TRITON MACA; do   echo "--- pgrep -af ${kw} (max 6) ---"   pgrep -af "${kw}" 2>/dev/null | head -6 || true done echo "--- vllm-related PIDs ---" PIDS=$(pgrep -f 'vllm_bootstrap_gemma4_maca|vllm.entrypoints.openai.api_server|EngineCore' 2>/dev/null | head -8 || true) if [[ -z "${PIDS}" ]]; then   echo "ENGINE_ENV_PROBE_no_pids"   exit 0 fi for pid in ${PIDS}; do   if [[ -r "/proc/${pid}/cmdline" ]]; then     echo "ENGINE_ENV_PROBE_cmdline=${pid}:$(tr '\0' ' ' < "/proc/${pid}/cmdline" | head -c 240)"   fi   if [[ -r "/proc/${pid}/environ" ]]; then     echo "ENGINE_ENV_PROBE_pid=${pid}"     tr '\0' '\n' < "/proc/${pid}/environ" | grep -E '^(GEMMA4_USE_BOOTSTRAP|VLLM_METAX_GEMMA3_27B_TILE32|GEMMA4_MACA_EXPERTS_BACKEND|VLLM_GEMMA4_METAX_CHAT_PROMPT_ALIGN|VLLM_ATTENTION_BACKEND|CUDA_VISIBLE_DEVICES|TENSOR_PARALLEL)=' || true   fi done echo "ENGINE_ENV_PROBE_end" 
+--- pgrep -af TRITON (max 6) ---
+211 /opt/conda/bin/python3 /tmp/vllm_bootstrap_gemma4_maca.py --model /data/gemma-4-26B-A4B-it --served-model-name gemma-4-26B-A4B-it --trust-remote-code --host 0.0.0.0 --port 18010 --dtype bfloat16 --max-model-len 4096 --gpu-memory-utilization 0.88 --tensor-parallel-size 1 --no-enable-chunked-prefill --no-enable-prefix-caching --attention-backend TRITON_ATTN --limit-mm-per-prompt {"image":0,"audio":0} --reasoning-parser gemma4 --enforce-eager --default-chat-template-kwargs {"enable_thinking":false}
+1427 bash -lc  set -euo pipefail echo "ENGINE_ENV_PROBE_begin" for kw in GEMMA VLLM_METAX TILE TRITON MACA; do   echo "--- pgrep -af ${kw} (max 6) ---"   pgrep -af "${kw}" 2>/dev/null | head -6 || true done echo "--- vllm-related PIDs ---" PIDS=$(pgrep -f 'vllm_bootstrap_gemma4_maca|vllm.entrypoints.openai.api_server|EngineCore' 2>/dev/null | head -8 || true) if [[ -z "${PIDS}" ]]; then   echo "ENGINE_ENV_PROBE_no_pids"   exit 0 fi for pid in ${PIDS}; do   if [[ -r "/proc/${pid}/cmdline" ]]; then     echo "ENGINE_ENV_PROBE_cmdline=${pid}:$(tr '\0' ' ' < "/proc/${pid}/cmdline" | head -c 240)"   fi   if [[ -r "/proc/${pid}/environ" ]]; then     echo "ENGINE_ENV_PROBE_pid=${pid}"     tr '\0' '\n' < "/proc/${pid}/environ" | grep -E '^(GEMMA4_USE_BOOTSTRAP|VLLM_METAX_GEMMA3_27B_TILE32|GEMMA4_MACA_EXPERTS_BACKEND|VLLM_GEMMA4_METAX_CHAT_PROMPT_ALIGN|VLLM_ATTENTION_BACKEND|CUDA_VISIBLE_DEVICES|TENSOR_PARALLEL)=' || true   fi done echo "ENGINE_ENV_PROBE_end" 
+--- pgrep -af MACA (max 6) ---
+1427 bash -lc  set -euo pipefail echo "ENGINE_ENV_PROBE_begin" for kw in GEMMA VLLM_METAX TILE TRITON MACA; do   echo "--- pgrep -af ${kw} (max 6) ---"   pgrep -af "${kw}" 2>/dev/null | head -6 || true done echo "--- vllm-related PIDs ---" PIDS=$(pgrep -f 'vllm_bootstrap_gemma4_maca|vllm.entrypoints.openai.api_server|EngineCore' 2>/dev/null | head -8 || true) if [[ -z "${PIDS}" ]]; then   echo "ENGINE_ENV_PROBE_no_pids"   exit 0 fi for pid in ${PIDS}; do   if [[ -r "/proc/${pid}/cmdline" ]]; then     echo "ENGINE_ENV_PROBE_cmdline=${pid}:$(tr '\0' ' ' < "/proc/${pid}/cmdline" | head -c 240)"   fi   if [[ -r "/proc/${pid}/environ" ]]; then     echo "ENGINE_ENV_PROBE_pid=${pid}"     tr '\0' '\n' < "/proc/${pid}/environ" | grep -E '^(GEMMA4_USE_BOOTSTRAP|VLLM_METAX_GEMMA3_27B_TILE32|GEMMA4_MACA_EXPERTS_BACKEND|VLLM_GEMMA4_METAX_CHAT_PROMPT_ALIGN|VLLM_ATTENTION_BACKEND|CUDA_VISIBLE_DEVICES|TENSOR_PARALLEL)=' || true   fi done echo "ENGINE_ENV_PROBE_end" 
+--- vllm-related PIDs ---
+ENGINE_ENV_PROBE_cmdline=211:/opt/conda/bin/python3 /tmp/vllm_bootstrap_gemma4_maca.py --model /data/gemma-4-26B-A4B-it --served-model-name gemma-4-26B-A4B-it --trust-remote-code --host 0.0.0.0 --port 18010 --dtype bfloat16 --max-model-len 4096 --gpu-memory-utilization
+ENGINE_ENV_PROBE_pid=211
+GEMMA4_USE_BOOTSTRAP=1
+VLLM_METAX_GEMMA3_27B_TILE32=0
+VLLM_GEMMA4_METAX_CHAT_PROMPT_ALIGN=0
+VLLM_ATTENTION_BACKEND=TRITON_ATTN
+CUDA_VISIBLE_DEVICES=6
+ENGINE_ENV_PROBE_cmdline=633:VLLM::EngineCore                                                                                                                         
+ENGINE_ENV_PROBE_pid=633
+ENGINE_ENV_PROBE_cmdline=1427:bash -lc 
+set -euo pipefail
+echo "ENGINE_ENV_PROBE_begin"
+for kw in GEMMA VLLM_METAX TILE TRITON MACA; do
+  echo "--- pgrep -af ${kw} (max 6) ---"
+  pgrep -af "${kw}" 2>/dev/null | head -6 || true
+done
+echo "--- vllm-related PIDs ---"
+PIDS=
+ENGINE_ENV_PROBE_pid=1427
+ENGINE_ENV_PROBE_end
+== [2c] 跳过远程 prompt 矩阵（CHANGSHA_SKIP_PROMPT_MATRIX=1）==
+== [2d] 跳过远程 Transformers 探测（CHANGSHA_SKIP_TRANSFORMERS_PROBE=1）==
+== [2f] 跳过远程引擎快照（CHANGSHA_SKIP_ENGINE_SNAPSHOT=1）==
+CHANGSHA_AUTOVERIFY_REMOTE_PHASE_SEC 2
+CHANGSHA_AUTOVERIFY_SKIPPED token_align prompt_matrix transformers_probe engine_snapshot
+CHANGSHA_AUTOVERIFY_SCRIPT_OK 1 layout_rev=57 host=<REDACTED_HOST> rev=? log=/Users/wangjunhui/playcode/changsha_gpu/docs/muxi/exports/changsha_autoverify_2026-04-16_eager_swizzle0_force2d.log ts=2026-04-17T16:24:18+0800
+== 完成 ==

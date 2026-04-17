@@ -39,6 +39,7 @@ you>
 | `docs/LAYOUT.md` | 发布包目录结构与各目录职责 |
 | `docs/QUICKSTART.md` | 给第一次试包的人用的 5 分钟上手说明 |
 | `docs/OFFLINE_DISTRIBUTION.md` | `docker save/load` 离线分发说明 |
+| `app/llm_tui/` | 独立终端测试应用（OpenAI-compatible；支持 `--chat` / `--stream`） |
 | `scripts/container_entrypoint.sh` | 容器启动入口：打补丁、安装 reasoning parser、启动 vLLM |
 | `scripts/verify_service.sh` | 容器内验收：先查 `/v1/models`，再跑 chat 烟测 |
 | `scripts/apply_vllm_site_patches.py` | 幂等 site-packages 补丁 |

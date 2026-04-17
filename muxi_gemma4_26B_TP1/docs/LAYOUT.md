@@ -7,6 +7,8 @@ muxi_gemma4_26B_TP1/
 ├── README.md                 # 总入口：适用前提、构建、运行、验收、补丁说明
 ├── Dockerfile                # 镜像构建（含 Transformers 5.x 等）
 ├── .env.example              # 环境变量模板（复制为 .env）
+├── app/
+│   └── llm_tui/              # 独立终端测试应用（main.py / README / .env.example）
 ├── docs/                     # 给人看的说明文档（无 Python 入口）
 │   ├── LAYOUT.md             # 本文件：目录地图
 │   ├── QUICKSTART.md         # 最短上手

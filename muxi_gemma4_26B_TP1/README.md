@@ -4,7 +4,7 @@ wangjunhui@MacBook-Pro-5 changsha_gpu % python3 app/llm_tui/main.py --chat --str
 config source: /Users/wangjunhui/playcode/changsha_gpu/app/llm_tui/.env.example
 chat mode started. input '/exit' to quit this mode.
 stream: on
-target: provider=openai_compatible base_url=http://***.***.82.8:18010 model=gemma-4-26B-A4B-it
+target: provider=openai_compatible base_url=http://???.???.82.8:18010 model=gemma-4-26B-A4B-it
 health: http_status=200 latency_ms=40.37 models=1
 max_tokens [128]: 
 temperature [0.0]: 
